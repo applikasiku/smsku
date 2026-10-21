@@ -9,6 +9,15 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
-  }
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "SMS_DB",
+      "database_name": "smsku-sms",
+      "database_id": "c58db39f-8995-4d4c-b87b-10fef178780c"
+    }
+  ]
 }
