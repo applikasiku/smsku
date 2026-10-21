@@ -36,7 +36,18 @@ $('createMail').onclick=async()=>{if(mailbox&&!confirm('Ganti alamat email? Akse
 $('copyAddress').onclick=()=>mailbox&&copy(mailbox.address);
 $('clearMail').onclick=()=>{generation++;mailbox=null;messages=[];otps=[];hasMore=false;storage.remove('smsku_mail');renderMessages();renderOtps();update();toast('Sesi lokal dilepas. Akun di penyedia tidak dihapus.')};
 $('refreshMail').onclick=()=>refresh();$('loadMore').onclick=()=>refresh(false,true);
-$('generateSms').onclick=()=>{$('smsResult').innerHTML=`<span>${icon('disconnected')}</span><b>Provider SMS belum terhubung</b><p>Penerimaan SMS memerlukan nomor aktif dari provider atau SIM milik Anda. API key harus disimpan di backend, bukan halaman ini.</p>`;toast('Pilih provider SMS untuk melanjutkan integrasi')};
+$('generateSms').onclick=async()=>{
+ const btn=$('generateSms'),key=$('smsAccess').value,paid=$('tier').value==='premium';
+ if(!key){toast('Isi kode akses SMS pribadi terlebih dahulu');return;}
+ if($('country').value!=='ID'){toast('Negara mengikuti SIM atau nomor yang dikonfigurasi, bukan pilihan generator.');return;}
+ if(paid&&!confirm('Izinkan cadangan berbayar jika gateway gratis tidak tersedia? Biaya nomor dan penerimaan mengikuti provider. Tidak ada pembelian nomor otomatis.'))return;
+ btn.disabled=true;btn.textContent='Memeriksa jalur gratis...';
+ try{const r=await fetch('/api/sms?paid='+(paid?'yes':'no'),{headers:{Authorization:'Bearer '+key},cache:'no-store',signal:AbortSignal.timeout(35000)});let data;try{data=await r.json()}catch{throw Error('Backend SMS belum aktif. Pastikan Cloudflare Pages Functions telah terdeploy.')}if(!r.ok)throw Error(data.error||'Gagal memuat SMS');
+ $('numCount').textContent='1';$('smsResult').className='';
+ $('smsResult').innerHTML=`<div class="message"><b>${esc(data.number)}</b><small>${esc(data.provider)} · ${data.tier==='free'?'SIM sendiri':'Cadangan berbayar'}</small>${data.previewOnly?'<p>Gateway menampilkan pratinjau SMS; pesan panjang dapat terpotong.</p>':''}<button class="small-btn" id="copySmsNumber">Salin nomor</button></div>`+(data.messages.length?data.messages.map(m=>`<div class="message"><small>${esc(m.from)} · ${esc(m.date)}</small><pre>${esc(m.body)}</pre></div>`).join(''):'<div class="empty"><b>Belum ada SMS masuk</b><p>Klik Hubungkan & baca SMS untuk memeriksa kembali.</p></div>');
+ $('copySmsNumber').onclick=()=>copy(data.number);data.messages.forEach(m=>detect({...m,id:'sms:'+data.tier+':'+m.id,from:{address:m.from}},m.body));toast('SMS dimuat melalui '+data.provider);
+ }catch(e){$('smsResult').className='empty';$('smsResult').innerHTML='<b>Belum tersambung</b><p>'+esc(e.message)+'</p>';toast(e.message)}finally{btn.disabled=false;btn.textContent='Hubungkan & baca SMS'}
+};
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;$('installApp').textContent='Pasang aplikasi'});
 $('installApp').onclick=async()=>{if(!installPrompt){toast('Buka menu browser → Instal aplikasi / Tambahkan ke layar utama.');return;}await installPrompt.prompt();await installPrompt.userChoice;installPrompt=null};
 window.addEventListener('appinstalled',()=>{$('installApp').textContent='Terpasang';toast('SMSKU terpasang')});
