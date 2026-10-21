@@ -1,27 +1,26 @@
-# SMSKU ID V1.0 — Responsive PWA
+# SMSKU ID — Personal SMS & temporary inbox PWA
 
-Static mobile-first PWA ready for Cloudflare Pages. No build command is needed.
+Static responsive app for Cloudflare Pages. No build command; publish repository root.
 
-## Features
-- Responsive dashboard and light/dark mode
-- Installable PWA with offline app-shell cache
-- Temporary email via Mail.tm API (subject to provider availability and CORS policy)
-- Read plain-text email, copy address, detect 4–8 digit numeric strings as OTP candidates
-- SMS provider selection UI, intentionally disabled until a legitimate backend is integrated
+## Implemented
+- Responsive layout, Icons8 Fluency icons, light/dark theme.
+- Temporary inbox via Mail.tm: create address, copy, list/read plain text messages, delete individual messages, load subsequent pages.
+- Automatic inbox refresh every 20 seconds while the page is visible and online.
+- Numeric OTP candidates from subjects/previews and opened message bodies; copy buttons. These are heuristic candidates, not guaranteed OTPs.
+- Session token in sessionStorage to restore access on reload in the same tab. No password stored; closing the tab may end local access. Clearing a session does not delete the provider account.
+- Install prompt where supported, browser-menu instructions otherwise; offline interface cache. Email and SMS require connectivity.
 
-## Deploy Cloudflare Pages
-1. Upload the files in this folder to the root of your `applikasiku/smsku` GitHub repository.
-2. In Cloudflare, create a Pages project linked to that repository.
-3. Select **None** for Framework preset, leave Build command empty, and use `/` as output directory for this static project (or set output directory `.` if required by the dashboard).
-4. Deploy and choose `smsku.pages.dev` if available.
+## Not integrated
+SMS reception needs a real provider number or an owned SIM gateway, authenticated server endpoints, and provider credentials stored as server secrets. No number is fabricated. No SMS subscription or purchase is performed by this app.
 
-## Security and limitations
-- This version is a frontend prototype, NOT a production-ready private OTP vault. There is no admin login.
-- SMS numbers cannot be generated randomly; real receiving numbers require a legitimate provider with API and inventory.
-- Never embed SMS provider API keys in frontend JavaScript. Implement a Cloudflare Worker API with authentication, rate limits, secrets, and provider-specific adapters.
-- Mail.tm accounts are not deleted by clearing the local session. The email account and messages may remain at the provider.
-- Email token stays only in JS memory and disappears on refresh. Mailbox session cannot be recovered after refresh.
-- OTP detection is heuristic and may show unrelated 4–8 digit numbers.
-- Email HTML is not rendered to avoid script injection. Email provider may rate-limit or change API/CORS behavior.
-- Offline mode only caches the interface; fetching new messages needs connectivity.
-- SVG icon works for many browsers, but add 192px and 512px PNG icons for broad PWA installation compatibility.
+Mail.tm is a receive-only integration here. Sending email requires another provider and a verified sender; there is no simulated send button.
+
+## Deployment
+Push to the Cloudflare-linked branch. Set framework to None, no build command, repository root as static output. Custom domain: sms.purbalink.web.id. Actual deployment must be checked in Cloudflare.
+
+## Verification
+Node syntax checks and mocked behavior checks for DELETE 204, rate-limit errors, OTP deduplication, pagination, session clearing and DOM bindings. Live Mail.tm delivery, SMS delivery, browser installation, and Cloudflare deployment were not verified in this environment.
+
+## Credits
+Interface icons: https://icons8.com
+Temporary email service: https://mail.tm
