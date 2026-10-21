@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {readdir,readFile} from 'node:fs/promises';
+import worker from '../worker.mjs';
+const env={ASSETS:{fetch:async()=>new Response('STATIC')}};const ctx={waitUntil(){}};
+let r=await worker.fetch(new Request('https://example.com/api/sms'),env,ctx);assert.equal(r.status,503);assert.match((await r.json()).error,/SMSKU_ACCESS_TOKEN/);
+r=await worker.fetch(new Request('https://example.com/api/smsgate/setup'),env,ctx);assert.equal(r.status,503);
+r=await worker.fetch(new Request('https://example.com/api/smsgate/webhook'),env,ctx);assert.equal(r.status,405);assert.equal(r.headers.get('Allow'),'POST');
+r=await worker.fetch(new Request('https://example.com/api/no-such-endpoint'),env,ctx);assert.equal(r.status,404);
+r=await worker.fetch(new Request('https://example.com/'),env,ctx);assert.equal(await r.text(),'STATIC');
+const files=await readdir(new URL('../dist',import.meta.url));assert(!files.includes('lib'));assert(!files.includes('functions'));assert(!files.includes('README.md'));assert(files.includes('index.html'));
+const config=JSON.parse(await readFile(new URL('../wrangler.jsonc',import.meta.url),'utf8'));assert.equal(config.main,'worker.mjs');assert.deepEqual(config.assets.run_worker_first,['/api/*']);
+console.log('PASS: Worker API routes, private endpoints, 404/405, static serving and safe asset packaging.');

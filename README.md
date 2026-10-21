@@ -1,3 +1,17 @@
+# Deployment saat ini: Cloudflare Workers + static assets
+
+Screenshot dashboard menunjukkan proyek `smsku` menggunakan Workers Builds, bukan Pages. Repository kini menyertakan `worker.mjs` dan `wrangler.jsonc` agar API berjalan sebagai Worker, sehingga bindings D1 dan secrets dapat ditambahkan.
+
+Pertahankan deploy command `npx wrangler deploy`. Build command di dashboard boleh tetap kosong: Wrangler menjalankan `node scripts/prepare-assets.mjs` dari konfigurasi sebelum deployment. Skrip menyalin hanya aset website ke `dist`; modul backend, tes, dan panduan tidak dipublikasikan sebagai file statis.
+
+Setelah deployment berhasil, muat ulang Settings. Pesan "Bindings cannot be added to a Worker that only has static assets" seharusnya tidak muncul lagi. Tambahkan D1 binding `SMS_DB` dan secrets gateway. Label menu Workers dapat berbeda dari panduan Pages di bawah. Setelah membuat binding melalui dashboard, sinkronkan ID database ke `d1_databases` dalam konfigurasi Wrangler agar deployment berikutnya mempertahankannya; jangan mengganti binding database produksi dengan placeholder.
+
+`keep_vars: true` mempertahankan variabel teks yang dikelola melalui dashboard; secrets tetap disimpan di Cloudflare. Itu bukan pengganti deklarasi D1 binding. Tidak ada credential ditanam di kode.
+
+Validasi lokal: `node scripts/prepare-assets.mjs`, `node tests/worker.test.mjs`, `node tests/cloud-sms.test.mjs`. Deployment langsung dan pengaturan akun Cloudflare masih memerlukan tindakan pengguna.
+
+---
+
 # SMSKU Cloud SMS — setup lewat HP, tanpa PC
 
 Mode utama menerima SMS dari SIM sendiri melalui SMSGate Cloud webhooks. Tidak perlu tunnel atau PC. Cloudflare Pages Functions dan database D1 harus dikonfigurasi; mengunggah kode ke GitHub saja belum mengaktifkan penerimaan SMS.
