@@ -1,9 +1,11 @@
+import {onRequestPost as smailpro} from './functions/api/smailpro.js';
 import {onRequest as mail} from './functions/api/mail/[[path]].js';
 import {onRequestGet as readSms} from './functions/api/sms.js';
 import {onRequestGet as checkSetup,onRequestPost as setupCloud} from './functions/api/smsgate/setup.js';
 import {onRequestPost as receiveSms} from './functions/api/smsgate/webhook.js';
 import {json} from './lib/server/sms.mjs';
 const routes={
+ '/api/smailpro':{POST:smailpro},
  '/api/sms':{GET:readSms},
  '/api/smsgate/setup':{GET:checkSetup,POST:setupCloud},
  '/api/smsgate/webhook':{POST:receiveSms}

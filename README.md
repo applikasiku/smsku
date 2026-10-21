@@ -1,3 +1,13 @@
+## Smailpro / Sonjj (opsional, berbasis kredit)
+
+Tambahkan Secret `SMAILPRO_API_KEY` pada Worker `smsku`, dengan API key dari https://my.sonjj.com. API memakai saldo kredit yang terpisah dari langganan web Smailpro. Jangan masukkan API key ke kolom kode akses website atau GitHub.
+
+Di menu Email pilih Smailpro email sementara, Gmail, atau Outlook. Isi kode akses SMSKU pribadi dan setujui pemakaian kredit. Buat alamat, refresh inbox, dan membaca pesan adalah operasi manual; Smailpro tidak termasuk pemilihan otomatis atau polling latar belakang. Tidak ada retry otomatis untuk permintaan berbayar. Penghapusan pesan dan lampiran Smailpro belum didukung. Key provider disimpan pada Cloudflare; respons email hanya diterima setelah kode akses pribadi divalidasi. Gmail/Outlook berupa inbox pool penyedia, bukan akun pribadi eksklusif. Hindari akun penting atau data sensitif.
+
+Pengujian: `node tests/smailpro.test.mjs`. Belum ada pemanggilan API Smailpro nyata atau pemakaian kredit dilakukan. Dokumentasi sumber: https://sonjj.com/docs/ dan https://smailpro.com/api.
+
+---
+
 # Deployment saat ini: Cloudflare Workers + static assets
 
 Screenshot dashboard menunjukkan proyek `smsku` menggunakan Workers Builds, bukan Pages. Repository kini menyertakan `worker.mjs` dan `wrangler.jsonc` agar API berjalan sebagai Worker, sehingga bindings D1 dan secrets dapat ditambahkan.

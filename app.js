@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 const API = 'https://api.mail.tm';
-const MAIL_PROVIDERS=[{name:'Mail.tm',api:API},{name:'Mail.gw (Worker privat)',api:'/api/mail'}];
+const MAIL_PROVIDERS=[{name:'Mail.tm',api:API},{name:'Mail.gw (Worker privat)',api:'/api/mail'},{name:'Smailpro',api:'/api/smailpro',paid:true}];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon = name => `<img class="ui-icon" src="/icons/${['mail','inbox'].includes(name)?'app-192':name}.png" width="24" height="24" alt="">`;
 const storage = {get(k){try{return sessionStorage.getItem(k)}catch{return null}},set(k,v){try{sessionStorage.setItem(k,v)}catch{}},remove(k){try{sessionStorage.removeItem(k)}catch{}}};
@@ -8,6 +8,7 @@ let mailbox=null, messages=[], otps=[], page=1, hasMore=false, busy=false, gener
 try { const saved=JSON.parse(storage.get('smsku_mail')); if(saved?.address&&saved?.token&&(!saved.api||MAIL_PROVIDERS.some(p=>p.api===saved.api))) mailbox=saved; } catch{}
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(timer);timer=setTimeout(()=>$('toast').classList.remove('show'),4000)}
 async function api(path, opts={}, session=mailbox, base=session?.api||API){
+ if(base==='/api/smailpro')return smailproRead(path,opts,session);
  if(!MAIL_PROVIDERS.some(p=>p.api===base))throw Error('Penyedia email tidak valid.');
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),base==='/api/mail'?20000:12000);
  try{
@@ -33,27 +34,32 @@ function applyTheme(){document.body.classList.toggle('dark',dark);$('theme').inn
 function theme(){dark=!dark;try{localStorage.setItem('smsku_theme',dark?'dark':'light')}catch{}applyTheme()}
 applyTheme();$('theme').onclick=theme;$('themeSettings').onclick=theme;
 async function copy(value){try{await navigator.clipboard.writeText(value);toast('Berhasil disalin')}catch{toast('Salin otomatis tidak tersedia. Pilih dan salin teks secara manual.')}}
-function update(){for(const id of ['messageCount','inboxCount'])$(id).textContent=messages.length;$('mailCount').textContent=mailbox?1:0;$('address').textContent=mailbox?.address||'Belum ada alamat email';for(const id of ['copyAddress','refreshMail','clearMail'])$(id).disabled=!mailbox;$('mailStatus').textContent=mailbox?'Aktif':'Belum dibuat';$('loadMore').hidden=!hasMore;$('mailInfo').textContent=mailbox?'Refresh otomatis setiap 20 detik saat halaman terbuka. Sesi dipulihkan saat reload di tab ini; menutup tab dapat menghapus akses.':'';}
+function update(){for(const id of ['messageCount','inboxCount'])$(id).textContent=messages.length;$('mailCount').textContent=mailbox?1:0;$('address').textContent=mailbox?.address||'Belum ada alamat email';for(const id of ['copyAddress','refreshMail','clearMail'])$(id).disabled=!mailbox;$('mailStatus').textContent=mailbox?'Aktif':'Belum dibuat';$('loadMore').hidden=!hasMore;$('mailInfo').textContent=mailbox?.paid?'Smailpro menggunakan kredit. Refresh otomatis dimatikan; perbarui inbox dan buka pesan secara manual.':mailbox?'Refresh otomatis setiap 20 detik saat halaman terbuka. Sesi dipulihkan saat reload di tab ini; menutup tab dapat menghapus akses.':'';}
 function detect(m,text){for(const code of new Set((text||'').match(/\b\d{4,8}\b/g)||[])){if(!otps.some(o=>o.id===m.id&&o.code===code))otps.push({code,id:m.id,from:m.from?.address||'Email'})}renderOtps()}
 function renderOtps(){const el=$('otpList');el.className=otps.length?'':'empty';el.innerHTML=otps.length?otps.map((o,i)=>`<div class="message"><b>${esc(o.code)}</b><small>${esc(o.from)}</small><button class="small-btn" data-copy="${i}">Salin kode</button></div>`).join(''):`<span>${icon('lock')}</span><b>Belum ada kode</b><p>Kode angka dari subjek dan pratinjau dideteksi otomatis. Buka pesan untuk memeriksa isi lengkap. Hasil deteksi bisa memuat angka selain OTP.</p>`;el.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>copy(otps[Number(b.dataset.copy)].code))}
 function renderMessages(){const el=$('mailMessages');el.className=messages.length?'':'empty';if(!messages.length){el.innerHTML=`<span>${icon('mail')}</span><b>Inbox kosong</b><p>Pesan baru diperiksa otomatis saat halaman terbuka.</p>`;return;}
  const open=new Set([...el.querySelectorAll('details[open]')].map(d=>d.dataset.id));
  const bodies=new Map([...el.querySelectorAll('details[data-loaded="1"]')].map(d=>[d.dataset.id,d.querySelector('.body').textContent]));
- el.innerHTML=messages.map(m=>`<details class="message" data-id="${esc(m.id)}" ${open.has(m.id)?'open':''}><summary>${esc(m.subject||'(Tanpa subjek)')}</summary><small>Dari: ${esc(m.from?.address)} · ${esc(new Date(m.createdAt).toLocaleString('id-ID'))}</small><p>${esc(m.intro||'Buka untuk membaca pesan.')}</p><pre class="body"></pre><button class="small-btn danger" data-delete>Hapus pesan</button></details>`).join('');
+ el.innerHTML=messages.map(m=>`<details class="message" data-id="${esc(m.id)}" ${open.has(m.id)?'open':''}><summary>${esc(m.subject||'(Tanpa subjek)')}</summary><small>Dari: ${esc(m.from?.address)} · ${esc(new Date(m.createdAt).toLocaleString('id-ID'))}</small><p>${esc(m.intro||'Buka untuk membaca pesan.')}</p><pre class="body"></pre><button class="small-btn danger" data-delete ${mailbox?.paid?'disabled title="Hapus pesan Smailpro belum didukung"':''}>Hapus pesan</button></details>`).join('');
  el.querySelectorAll('details').forEach(d=>{
  if(bodies.has(d.dataset.id)){d.dataset.loaded='1';d.querySelector('.body').textContent=bodies.get(d.dataset.id)}
- d.addEventListener('toggle',async()=>{if(!d.open||d.dataset.loaded)return;d.dataset.loaded='loading';const session=mailbox,stamp=generation;try{const m=await api('/messages/'+encodeURIComponent(d.dataset.id),{},session);if(stamp!==generation)return;const body=m.text||'Pesan ini hanya memiliki konten HTML. Tampilan HTML dinonaktifkan untuk keamanan.';d.querySelector('.body').textContent=body;d.dataset.loaded='1';detect(m,(m.subject||'')+' '+body)}catch(e){delete d.dataset.loaded;toast(e.message)}});
+ d.addEventListener('toggle',async()=>{if(!d.open||d.dataset.loaded)return;d.dataset.loaded='loading';const session=mailbox,stamp=generation;try{const m=await api('/messages/'+encodeURIComponent(d.dataset.id),{},session);if(stamp!==generation)return;const body=(session?.paid?new DOMParser().parseFromString(m.text||'','text/html').body.textContent:m.text)||'Pesan ini hanya memiliki konten HTML. Tampilan HTML dinonaktifkan untuk keamanan.';d.querySelector('.body').textContent=body;d.dataset.loaded='1';detect(m,(m.subject||'')+' '+body)}catch(e){delete d.dataset.loaded;toast(e.message)}});
  d.querySelector('[data-delete]').onclick=async b=>{if(!confirm('Hapus pesan ini dari inbox penyedia?'))return;b.target.disabled=true;const stamp=generation;try{await api('/messages/'+encodeURIComponent(d.dataset.id),{method:'DELETE'});if(stamp!==generation)return;messages=messages.filter(m=>m.id!==d.dataset.id);otps=otps.filter(o=>o.id!==d.dataset.id);renderMessages();renderOtps();update();toast('Pesan dihapus')}catch(e){b.target.disabled=false;toast(e.message)}};
  });
 }
-async function refresh(quiet=false,more=false){if(!mailbox||busy)return;busy=true;const stamp=generation,session=mailbox;const target=more?page+1:1;$('refreshMail').disabled=true;$('loadMore').disabled=true;try{const data=await api('/messages?page='+target,{},session);if(stamp!==generation)return;const items=data['hydra:member']||[];messages=more?[...messages,...items.filter(m=>!messages.some(x=>x.id===m.id))]:items;page=target;hasMore=!!data['hydra:view']?.['hydra:next'];items.forEach(m=>detect(m,(m.subject||'')+' '+(m.intro||'')));renderMessages();update();if(!quiet)toast('Inbox diperbarui')}catch(e){if(stamp===generation){$('mailInfo').textContent=e.message;if(!quiet)toast(e.message);if(e.status===401){storage.remove('smsku_mail');mailbox=null;update();$('mailInfo').textContent=e.message}}}finally{busy=false;$('refreshMail').disabled=!mailbox;$('loadMore').disabled=false}}
+async function refresh(quiet=false,more=false){if(!mailbox||busy||(quiet&&mailbox.paid))return;busy=true;const stamp=generation,session=mailbox;const target=more?page+1:1;$('refreshMail').disabled=true;$('loadMore').disabled=true;try{const data=await api('/messages?page='+target,{},session);if(stamp!==generation)return;const items=data['hydra:member']||[];messages=more?[...messages,...items.filter(m=>!messages.some(x=>x.id===m.id))]:items;page=target;hasMore=!!data['hydra:view']?.['hydra:next'];items.forEach(m=>detect(m,(m.subject||'')+' '+(m.intro||'')));renderMessages();update();if(!quiet)toast('Inbox diperbarui')}catch(e){if(stamp===generation){$('mailInfo').textContent=e.message;if(!quiet)toast(e.message);if(e.status===401){storage.remove('smsku_mail');mailbox=null;update();$('mailInfo').textContent=e.message}}}finally{busy=false;$('refreshMail').disabled=!mailbox;$('loadMore').disabled=false}}
 $('createMail').onclick=async()=>{
  if(mailbox&&!confirm('Ganti alamat email? Akses inbox sebelumnya di tab ini akan dilepas.'))return;
  const btn=$('createMail');btn.disabled=true;btn.textContent='Mencari penyedia...';
  let stage='Memilih penyedia',chosen=null;
  try{
   const selection=$('mailProvider').value;
-  const candidates=selection==='auto'?MAIL_PROVIDERS:MAIL_PROVIDERS.filter(p=>p.api===selection);
+  if(selection.startsWith('smailpro:')){
+   if(!confirm('Smailpro memakai kredit Sonjj untuk membuat inbox, memeriksa inbox, dan membaca pesan. Lanjutkan?'))return;
+   const kind=selection.split(':')[1],data=await smailproRequest({action:'create',kind});
+   generation++;mailbox={id:data.email,address:data.email,token:'smailpro-session',api:'/api/smailpro',provider:'Smailpro',paid:true,kind,timestamp:data.timestamp,expired_at:data.expired_at};storage.set('smsku_mail',JSON.stringify(mailbox));messages=[];otps=[];page=1;hasMore=false;renderMessages();renderOtps();update();toast('Inbox Smailpro dibuat. Refresh manual untuk menghemat kredit.');return;
+  }
+  const candidates=selection==='auto'?MAIL_PROVIDERS.filter(p=>!p.paid):MAIL_PROVIDERS.filter(p=>p.api===selection);
   let domain,lastError;
   // Only read-only domain discovery falls back automatically. Never replay account writes.
   for(const provider of candidates){
@@ -69,7 +75,7 @@ $('createMail').onclick=async()=>{
   const token=await api('/token',{method:'POST',body:JSON.stringify({address,password})},null,chosen.api);
   if(!account?.id||!token?.token)throw Error('Data aktivasi email tidak lengkap.');
   generation++;mailbox={id:account.id,address,token:token.token,api:chosen.api,provider:chosen.name};storage.set('smsku_mail',JSON.stringify(mailbox));messages=[];otps=[];page=1;hasMore=false;renderMessages();renderOtps();update();$('mailInfo').textContent='Email aktif melalui '+chosen.name+'. Refresh otomatis setiap 20 detik saat halaman terbuka. Sesi tersimpan di tab ini.';toast('Email sementara berhasil dibuat');
- }catch(e){const message=stage+': '+e.message;$('mailInfo').textContent=message+' Coba buka melalui Chrome dan pilih penyedia lainnya jika tetap gagal.';toast(message)}finally{btn.disabled=false;btn.textContent='Buat email gratis'}
+ }catch(e){const message=stage+': '+e.message;$('mailInfo').textContent=message+' Coba buka melalui Chrome dan pilih penyedia lainnya jika tetap gagal.';toast(message)}finally{btn.disabled=false;btn.textContent='Buat email'}
 };
 $('copyAddress').onclick=()=>mailbox&&copy(mailbox.address);
 $('clearMail').onclick=()=>{generation++;mailbox=null;messages=[];otps=[];hasMore=false;storage.remove('smsku_mail');renderMessages();renderOtps();update();toast('Sesi lokal dilepas. Akun di penyedia tidak dihapus.')};
@@ -89,9 +95,9 @@ $('generateSms').onclick=async()=>{
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;$('installApp').textContent='Pasang aplikasi'});
 $('installApp').onclick=async()=>{if(!installPrompt){toast('Buka menu browser → Instal aplikasi / Tambahkan ke layar utama.');return;}await installPrompt.prompt();await installPrompt.userChoice;installPrompt=null};
 window.addEventListener('appinstalled',()=>{$('installApp').textContent='Terpasang';toast('SMSKU terpasang')});
-setInterval(()=>{if(!document.hidden&&navigator.onLine)refresh(true)},20000);
-window.addEventListener('online',()=>refresh(true));document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
-update();renderMessages();renderOtps();if(mailbox)refresh(true);
+setInterval(()=>{if(!document.hidden&&navigator.onLine&&!mailbox?.paid)refresh(true)},20000);
+window.addEventListener('online',()=>{if(!mailbox?.paid)refresh(true)});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!mailbox?.paid)refresh(true)});
+update();renderMessages();renderOtps();if(mailbox&&!mailbox.paid)refresh(true);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>toast('Mode offline belum tersedia di browser ini.'));
 
 const initialTab=location.hash.slice(1);if(["home","sms","mail","otp","settings"].includes(initialTab))nav(initialTab);
@@ -104,3 +110,16 @@ $('connectCloudSms').onclick=async()=>{
  $('cloudSmsInfo').textContent=data.message;toast('Cloud SMS terhubung. Uji dengan SMS percobaan.');
  }catch(e){$('cloudSmsInfo').textContent=e.message;toast(e.message)}finally{btn.disabled=false;btn.textContent='Hubungkan Cloud SMS'}
 };
+
+async function smailproRequest(input){
+ const access=$('mailAccess').value||$('smsAccess').value;if(!access)throw Error('Isi kode akses pribadi untuk Smailpro.');
+ const r=await fetch('/api/smailpro',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+access},body:JSON.stringify({...input,consent:true}),signal:AbortSignal.timeout(20000)});
+ let data;try{data=await r.json()}catch{throw Error('API Smailpro belum terdeploy.')}if(!r.ok)throw Error(data.error||'Permintaan Smailpro gagal.');return data;
+}
+async function smailproRead(path,opts,session){
+ if(!session?.paid)throw Error('Sesi Smailpro belum tersedia.');
+ if(opts.method==='DELETE')throw Error('Hapus pesan Smailpro belum didukung.');
+ const message=path.match(/^\/messages\/(.+)$/),inbox=/^\/messages(?:\?page=1)?$/.test(path);
+ if(!message&&!inbox)throw Error('Operasi Smailpro tidak didukung.');
+ return smailproRequest({action:message?'message':'inbox',kind:session.kind,email:session.address,timestamp:session.timestamp,...(message?{mid:decodeURIComponent(message[1])}:{})});
+}
