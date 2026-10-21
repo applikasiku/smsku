@@ -29,3 +29,11 @@ assert.equal((await setup.onRequestPost({request:privateRequest(),env})).status,
 globalThis.fetch=async()=>Response.json([{event:'sms:received',device_id:'device-1',url:'https://sms.purbalink.web.id/api/smsgate/webhook'}]);assert.equal((await (await setup.onRequestPost({request:privateRequest(),env})).json()).existing,true);
 assert.equal((await setup.onRequestPost({request:privateRequest(),env:{SMSKU_ACCESS_TOKEN:'private-code'}})).status,503);
 console.log('PASS: signed SMS, retry deduplication, timestamp, wrong signature/device, invalid data, private inbox, webhook registration and repeat setup.');
+// Setup failures must identify the stage without exposing provider credentials.
+globalThis.fetch=async()=>{throw new DOMException('Timed out','TimeoutError')};
+let failure=await (await setup.onRequestPost({request:privateRequest(),env})).json();assert.equal(failure.stage,'list');assert.match(failure.error,/terlalu lama/);assert(!JSON.stringify(failure).includes('cloud-pass'));
+globalThis.fetch=async()=>Response.json({error:'unauthorized'},{status:401});failure=await (await setup.onRequestPost({request:privateRequest(),env})).json();assert.equal(failure.stage,'list');assert.match(failure.error,/ditolak/);
+failure=await (await setup.onRequestPost({request:privateRequest(),env:{...env,SMSKU_PUBLIC_URL:'invalid'}})).json();assert.equal(failure.stage,'url');
+let externalFollowed=false;globalThis.fetch=async(url)=>{if(String(url).includes('attacker'))externalFollowed=true;return new Response(null,{status:302,headers:{Location:'https://attacker.invalid'}})};
+failure=await (await setup.onRequestPost({request:privateRequest(),env})).json();assert.equal(failure.stage,'list');assert.equal(externalFollowed,false);
+console.log('PASS: safe diagnostics for timeout, rejected credentials, invalid URL, and blocked cross-origin redirects.');
