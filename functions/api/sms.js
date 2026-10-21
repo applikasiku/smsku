@@ -9,6 +9,13 @@ export async function onRequestGet({request,env}){
  const freeReady=!!(env.SMSGATE_URL&&env.SMSGATE_USER&&env.SMSGATE_PASSWORD&&env.SMSGATE_NUMBER);
  const paidReady=!!(env.TWILIO_ACCOUNT_SID&&env.TWILIO_AUTH_TOKEN&&env.TWILIO_NUMBER);
  try{
+  // Cloud mode receives SMS through signed device webhooks; no tunnel or PC.
+  if(env.SMS_DB&&env.SMSGATE_DEVICE_ID&&env.SMSGATE_SIGNING_KEY&&env.SMSGATE_NUMBER){
+   try{const since=Math.floor(Date.now()/1000)-7*86400;
+    const data=await env.SMS_DB.prepare('SELECT event_id,sender,body,received_at FROM sms_inbox WHERE device_id = ? AND stored_at >= ? ORDER BY stored_at DESC,event_id DESC LIMIT 50').bind(env.SMSGATE_DEVICE_ID,since).all();
+    return json({provider:'SIM sendiri / SMSGate Cloud',tier:'free',number:env.SMSGATE_NUMBER,previewOnly:false,messages:(data.results||[]).map(m=>({id:m.event_id,from:m.sender,body:m.body,date:m.received_at}))});
+   }catch{if(!paid&&!freeReady)return json({error:'Database belum siap. Klik Hubungkan Cloud SMS setelah konfigurasi Cloudflare selesai.',paidAvailable:paidReady},503)}
+  }
   // Always try the owned SIM first. An empty inbox is a success, not a fallback trigger.
   if(freeReady){try{
    const base=new URL(env.SMSGATE_URL);if(base.protocol!=='https:')throw Error('Gateway memerlukan HTTPS');

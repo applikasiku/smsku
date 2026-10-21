@@ -1,3 +1,47 @@
+# SMSKU Cloud SMS — setup lewat HP, tanpa PC
+
+Mode utama menerima SMS dari SIM sendiri melalui SMSGate Cloud webhooks. Tidak perlu tunnel atau PC. Cloudflare Pages Functions dan database D1 harus dikonfigurasi; mengunggah kode ke GitHub saja belum mengaktifkan penerimaan SMS.
+
+## 1. HP Android
+Aktifkan Cloud Server dan Start on boot di SMSGate. Pakai kredensial Cloud Server, bukan Local Server. Buka Settings → Webhooks → Signing Key. Simpan nilai itu di Cloudflare, bukan di chat atau GitHub. Jika kredensial pernah terekspos, ganti terlebih dahulu sesuai pengaturan aplikasi.
+
+## 2. Cloudflare dari browser HP
+- Buat D1 database bernama `smsku-sms` di bagian Storage & databases → D1 (nama menu dapat berubah).
+- Buka Workers & Pages → smsku → Settings → Bindings. Tambahkan D1 binding dengan nama variabel `SMS_DB`, pilih database `smsku-sms`.
+- Tambahkan konfigurasi Production berikut di Variables and Secrets; simpan credential sebagai Secret:
+
+| Nama | Isi |
+| --- | --- |
+| SMSKU_ACCESS_TOKEN | Kode akses pribadi acak minimal 32 karakter; dibuat sendiri, bukan password provider |
+| SMSGATE_CLOUD_USER | Username di bagian Cloud Server aplikasi |
+| SMSGATE_CLOUD_PASSWORD | Password Cloud Server aplikasi (Secret) |
+| SMSGATE_DEVICE_ID | Device ID pada bagian Cloud Server |
+| SMSGATE_SIGNING_KEY | Nilai Settings → Webhooks → Signing Key (Secret) |
+| SMSGATE_NUMBER | Nomor SIM sebenarnya dalam format +62… |
+| SMSKU_PUBLIC_URL | https://sms.purbalink.web.id (opsional jika memakai domain ini) |
+
+`SMS_DB` adalah binding D1, bukan variabel teks. Perubahan binding/secrets memerlukan redeploy. Proyek harus mendukung Pages Functions; upload statis saja tidak cukup.
+
+## 3. Daftarkan gateway
+Setelah deployment sukses, buka website → SMS → masukkan SMSKU_ACCESS_TOKEN → klik **Hubungkan Cloud SMS**. Server membuat tabel dan mendaftarkan webhook `sms:received` untuk perangkat yang dipilih. Kredensial provider tidak pernah dikirim ke browser. Tidak perlu menyalin SQL atau menjalankan terminal. Setup berulang memeriksa webhook yang sama sebelum mendaftarkan lagi.
+
+## 4. Uji SMS nyata
+Tunggu sinkronisasi Cloud Server. Kirim SMS percobaan biasa ke SIM. Di SMSKU klik **Hubungkan & baca SMS**. Deteksi OTP membaca isi pesan yang diterima; hasil angka adalah kandidat, bukan jaminan OTP. SMS diperbarui manual, sedangkan email tetap diperiksa otomatis. Pendaftaran sukses belum membuktikan SMS berhasil diterima.
+
+Jika belum muncul: periksa SMSGate Settings → Webhooks → Registered webhooks dan Webhook Queue. Respons 401 biasanya menandakan Signing Key/waktu HP tidak cocok. Respons 403 menunjukkan Device ID tidak cocok. Respons 503 menunjukkan D1 atau konfigurasi belum siap. HP memerlukan internet dan izin SMS.
+
+## Penyimpanan dan keamanan
+Webhook memverifikasi HMAC-SHA256 dari body asli + X-Timestamp, menerima waktu dalam rentang ±5 menit, dan membatasi perangkat. Retry dideduplikasi dengan pasangan device ID dan envelope event ID. Pesan tujuh hari terakhir tersedia melalui API privat; baris lama dibersihkan saat webhook SMS berikutnya masuk (tanpa webhook baru, data lama tetap berada di database sampai dibersihkan). Isi SMS tidak dimasukkan ke service-worker cache. Nomor, SIM, internet, dan kuota Cloudflare tetap mengikuti biaya masing-masing layanan.
+
+SMS Cloud diprioritaskan sebelum jalur lokal/berbayar. Inbox kosong tidak memicu cadangan berbayar. Tidak ada pembelian nomor, isi saldo, pengiriman SMS, atau ekspor riwayat lama otomatis. Jalur lokal dan cadangan Twilio sebelumnya tetap tersedia.
+
+## Validasi
+`node tests/cloud-sms.test.mjs` (Node 24+) menguji signature, batas waktu, perangkat yang salah, format payload, deduplikasi, inbox privat, serta registrasi webhook dan setup berulang dengan SQLite asli dan API mock. Pengujian perangkat nyata/Cloudflare belum dilakukan dari lingkungan ini.
+
+Referensi: https://docs.sms-gate.app/features/webhooks/ dan https://developers.cloudflare.com/pages/functions/bindings/
+
+---
+
 # SMSKU ID — Personal SMS & temporary inbox PWA
 
 Static responsive app for Cloudflare Pages. No build command; publish repository root.

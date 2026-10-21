@@ -57,3 +57,12 @@ update();renderMessages();renderOtps();if(mailbox)refresh(true);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>toast('Mode offline belum tersedia di browser ini.'));
 
 const initialTab=location.hash.slice(1);if(["home","sms","mail","otp","settings"].includes(initialTab))nav(initialTab);
+
+$('connectCloudSms').onclick=async()=>{
+ const key=$('smsAccess').value;if(!key){toast('Isi kode akses SMS pribadi terlebih dahulu');return;}
+ const btn=$('connectCloudSms');btn.disabled=true;btn.textContent='Menghubungkan...';
+ try{const response=await fetch('/api/smsgate/setup',{method:'POST',headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(30000)});let data;try{data=await response.json()}catch{throw Error('Pages Functions belum terdeploy. Periksa Cloudflare.')}
+ if(!response.ok)throw Error((data.error||'Koneksi gagal')+(data.missing?.length?' Isi: '+data.missing.join(', '):''));
+ $('cloudSmsInfo').textContent=data.message;toast('Cloud SMS terhubung. Uji dengan SMS percobaan.');
+ }catch(e){$('cloudSmsInfo').textContent=e.message;toast(e.message)}finally{btn.disabled=false;btn.textContent='Hubungkan Cloud SMS'}
+};
