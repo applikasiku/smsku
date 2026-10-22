@@ -1,10 +1,11 @@
+import {session} from '../../lib/server/auth.mjs';
 // Cloudflare Pages Function. Provider credentials remain server-side.
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 async function equal(a,b){const hash=async s=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));const [x,y]=await Promise.all([hash(a),hash(b)]);let d=0;for(let i=0;i<x.length;i++)d|=x[i]^y[i];return d===0;}
 async function upstream(url,authorization){const r=await fetch(url,{headers:{Authorization:authorization},signal:AbortSignal.timeout(15000),redirect:'error'});if(!r.ok)throw Error('Provider tidak dapat diakses ('+r.status+')');return r.json();}
 export async function onRequestGet({request,env}){
  if(!env.SMSKU_ACCESS_TOKEN)return json({error:'Backend belum dikonfigurasi. Isi SMSKU_ACCESS_TOKEN di Cloudflare.'},503);
- const token=request.headers.get('Authorization')||'';if(!await equal(token,'Bearer '+env.SMSKU_ACCESS_TOKEN))return json({error:'Kode akses salah atau belum diisi.'},401);
+ const token=request.headers.get('Authorization')||'';if(!await session(request,env)&&!await equal(token,'Bearer '+env.SMSKU_ACCESS_TOKEN))return json({error:'Kode akses salah atau belum diisi.'},401);
  const params=new URL(request.url).searchParams,paid=params.get('paid')==='yes';
  const freeReady=!!(env.SMSGATE_URL&&env.SMSGATE_USER&&env.SMSGATE_PASSWORD&&env.SMSGATE_NUMBER);
  const paidReady=!!(env.TWILIO_ACCOUNT_SID&&env.TWILIO_AUTH_TOKEN&&env.TWILIO_NUMBER);

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {auth,session} from '../lib/server/auth.mjs';
+const sqlite=new DatabaseSync(':memory:');
+const env={SMSKU_PIN:'654321',SMSKU_ACCESS_TOKEN:'test-secret',SMS_DB:{prepare(sql){let args=[];return {bind(...v){args=v;return this},run(){return sqlite.prepare(sql).run(...args)},first(){return sqlite.prepare(sql).get(...args)}}}}};
+const login=pin=>new Request('https://example.com/api/auth/login',{method:'POST',headers:{Origin:'https://example.com','Content-Type':'application/json','CF-Connecting-IP':'1.2.3.4'},body:JSON.stringify({pin})});
+assert.equal((await auth(login('000000'),env)).status,401);
+const r=await auth(login('654321'),env);assert.equal(r.status,200);const cookie=r.headers.get('set-cookie');assert.match(cookie,/HttpOnly; Secure; SameSite=Strict/);
+assert(await session(new Request('https://example.com',{headers:{Cookie:cookie}}),env));
+assert(!await session(new Request('https://example.com',{headers:{Cookie:cookie.replace(/smsku_session=./,'smsku_session=x')}}),env));
+for(let i=0;i<8;i++)await auth(login('000000'),env);
+assert.equal((await auth(login('654321'),env)).status,429);
+assert.equal((await auth(new Request('https://example.com/api/auth/login',{method:'POST',headers:{Origin:'https://other.com'}}),env)).status,403);
+console.log('PASS PIN session, cookie flags, tampering, cross-origin and attempt limiting');

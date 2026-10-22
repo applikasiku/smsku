@@ -5,7 +5,7 @@ import {createHmac} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {initialize} from '../lib/server/sms.mjs';
 const lib=new URL('../lib/server/sms.mjs',import.meta.url).href;
-async function load(path){const source=(await readFile(new URL(path,import.meta.url),'utf8')).replace("'../../../lib/server/sms.mjs'",JSON.stringify(lib));return import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))}
+async function load(path){const source=(await readFile(new URL(path,import.meta.url),'utf8')).replace("'../../../lib/server/sms.mjs'",JSON.stringify(lib)).replace("'../../lib/server/auth.mjs'",JSON.stringify(new URL('../lib/server/auth.mjs',import.meta.url).href));return import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))}
 const webhook=await load('../functions/api/smsgate/webhook.js'),setup=await load('../functions/api/smsgate/setup.js'),inbox=await load('../functions/api/sms.js');
 const sqlite=new DatabaseSync(':memory:');
 const db={prepare(sql){let args=[];return {bind(...v){args=v;return this},run(){return sqlite.prepare(sql).run(...args)},all(){return {results:sqlite.prepare(sql).all(...args)}}}},batch:async statements=>statements.map(s=>s.run())};

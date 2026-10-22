@@ -1,3 +1,4 @@
+let authenticated=false;
 const $ = id => document.getElementById(id);
 const API = 'https://api.mail.tm';
 const MAIL_PROVIDERS=[{name:'Mail.tm',api:API},{name:'Mail.gw (Worker privat)',api:'/api/mail'},{name:'Smailpro',api:'/api/smailpro',paid:true}];
@@ -13,10 +14,9 @@ async function api(path, opts={}, session=mailbox, base=session?.api||API){
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),base==='/api/mail'?20000:12000);
  try{
   const backend=base==='/api/mail';
-  const access=$('mailAccess').value||$('smsAccess').value;
-  if(backend&&!access)throw Error('Isi kode akses pribadi pada kolom email untuk menggunakan cadangan Mail.gw.');
-  const auth=backend?{Authorization:'Bearer '+access,...(session?.token?{'X-Mail-Token':session.token}:{})}:(session?.token?{Authorization:`Bearer ${session.token}`} : {});
-  const response=await fetch(base+path,{...opts,signal:controller.signal,credentials:'omit',redirect:'error',headers:{Accept:'application/ld+json',...(opts.body?{'Content-Type':'application/json'}:{}),...auth,...opts.headers}});
+  const access='';
+  const auth=backend?{...(session?.token?{'X-Mail-Token':session.token}:{})}:(session?.token?{Authorization:`Bearer ${session.token}`} : {});
+  const response=await fetch(base+path,{...opts,signal:controller.signal,credentials:backend?'same-origin':'omit',redirect:'error',headers:{Accept:'application/ld+json',...(opts.body?{'Content-Type':'application/json'}:{}),...auth,...opts.headers}});
   if(!response.ok){let detail;try{detail=await response.json()}catch{}const error=new Error(detail?.error||(response.status===429?'Penyedia email membatasi permintaan. Tunggu sebentar sebelum mencoba lagi.':response.status===401?'Sesi email kedaluwarsa. Buat email baru.':`Layanan email gagal (${response.status})`));error.status=response.status;throw error;}
   if(response.status===204)return null;
   try{return await response.json()}catch{throw Error('Respons penyedia email tidak valid. Coba penyedia lain.')}
@@ -81,12 +81,11 @@ $('copyAddress').onclick=()=>mailbox&&copy(mailbox.address);
 $('clearMail').onclick=()=>{generation++;mailbox=null;messages=[];otps=[];hasMore=false;storage.remove('smsku_mail');renderMessages();renderOtps();update();toast('Sesi lokal dilepas. Akun di penyedia tidak dihapus.')};
 $('refreshMail').onclick=()=>refresh();$('loadMore').onclick=()=>refresh(false,true);
 $('generateSms').onclick=async()=>{
- const btn=$('generateSms'),key=$('smsAccess').value,paid=$('tier').value==='premium';
- if(!key){toast('Isi kode akses SMS pribadi terlebih dahulu');return;}
+ const btn=$('generateSms'),key='',paid=$('tier').value==='premium';
  if($('country').value!=='ID'){toast('Negara mengikuti SIM atau nomor yang dikonfigurasi, bukan pilihan generator.');return;}
  if(paid&&!confirm('Izinkan cadangan berbayar jika gateway gratis tidak tersedia? Biaya nomor dan penerimaan mengikuti provider. Tidak ada pembelian nomor otomatis.'))return;
  btn.disabled=true;btn.textContent='Memeriksa jalur gratis...';
- try{const r=await fetch('/api/sms?paid='+(paid?'yes':'no'),{headers:{Authorization:'Bearer '+key},cache:'no-store',signal:AbortSignal.timeout(35000)});let data;try{data=await r.json()}catch{throw Error('Backend SMS belum aktif. Pastikan Cloudflare Pages Functions telah terdeploy.')}if(!r.ok)throw Error(data.error||'Gagal memuat SMS');
+ try{const r=await fetch('/api/sms?paid='+(paid?'yes':'no'),{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(35000)});let data;try{data=await r.json()}catch{throw Error('Backend SMS belum aktif. Pastikan Cloudflare Pages Functions telah terdeploy.')}if(!r.ok)throw Error(data.error||'Gagal memuat SMS');
  $('numCount').textContent='1';$('smsResult').className='';
  $('smsResult').innerHTML=`<div class="message"><b>${esc(data.number)}</b><small>${esc(data.provider)} · ${data.tier==='free'?'SIM sendiri':'Cadangan berbayar'}</small>${data.previewOnly?'<p>Gateway menampilkan pratinjau SMS; pesan panjang dapat terpotong.</p>':''}<button class="small-btn" id="copySmsNumber">Salin nomor</button></div>`+(data.messages.length?data.messages.map(m=>`<div class="message"><small>${esc(m.from)} · ${esc(m.date)}</small><pre>${esc(m.body)}</pre></div>`).join(''):'<div class="empty"><b>Belum ada SMS masuk</b><p>Klik Hubungkan & baca SMS untuk memeriksa kembali.</p></div>');
  $('copySmsNumber').onclick=()=>copy(data.number);data.messages.forEach(m=>detect({...m,id:'sms:'+data.tier+':'+m.id,from:{address:m.from}},m.body));toast('SMS dimuat melalui '+data.provider);
@@ -95,25 +94,25 @@ $('generateSms').onclick=async()=>{
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;$('installApp').textContent='Pasang aplikasi'});
 $('installApp').onclick=async()=>{if(!installPrompt){toast('Buka menu browser → Instal aplikasi / Tambahkan ke layar utama.');return;}await installPrompt.prompt();await installPrompt.userChoice;installPrompt=null};
 window.addEventListener('appinstalled',()=>{$('installApp').textContent='Terpasang';toast('SMSKU terpasang')});
-setInterval(()=>{if(!document.hidden&&navigator.onLine&&!mailbox?.paid)refresh(true)},20000);
-window.addEventListener('online',()=>{if(!mailbox?.paid)refresh(true)});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!mailbox?.paid)refresh(true)});
-update();renderMessages();renderOtps();if(mailbox&&!mailbox.paid)refresh(true);
+setInterval(()=>{if(authenticated&&!document.hidden&&navigator.onLine&&!mailbox?.paid)refresh(true)},20000);
+window.addEventListener('online',()=>{if(authenticated&&!mailbox?.paid)refresh(true)});document.addEventListener('visibilitychange',()=>{if(authenticated&&!document.hidden&&!mailbox?.paid)refresh(true)});
+update();renderMessages();renderOtps();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>toast('Mode offline belum tersedia di browser ini.'));
 
 const initialTab=location.hash.slice(1);if(["home","sms","mail","otp","settings"].includes(initialTab))nav(initialTab);
 
 $('connectCloudSms').onclick=async()=>{
- const key=$('smsAccess').value;if(!key){toast('Isi kode akses SMS pribadi terlebih dahulu');return;}
+ const key='';
  const btn=$('connectCloudSms');btn.disabled=true;btn.textContent='Menghubungkan...';
- try{const response=await fetch('/api/smsgate/setup',{method:'POST',headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(30000)});let data;try{data=await response.json()}catch{throw Error('Pages Functions belum terdeploy. Periksa Cloudflare.')}
+ try{const response=await fetch('/api/smsgate/setup',{method:'POST',credentials:'same-origin',signal:AbortSignal.timeout(30000)});let data;try{data=await response.json()}catch{throw Error('Pages Functions belum terdeploy. Periksa Cloudflare.')}
  if(!response.ok)throw Error((data.error||'Koneksi gagal')+(data.missing?.length?' Isi: '+data.missing.join(', '):''));
  $('cloudSmsInfo').textContent=data.message;toast('Cloud SMS terhubung. Uji dengan SMS percobaan.');
  }catch(e){$('cloudSmsInfo').textContent=e.message;toast(e.message)}finally{btn.disabled=false;btn.textContent='Hubungkan Cloud SMS'}
 };
 
 async function smailproRequest(input){
- const access=$('mailAccess').value||$('smsAccess').value;if(!access)throw Error('Isi kode akses pribadi untuk Smailpro.');
- const r=await fetch('/api/smailpro',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+access},body:JSON.stringify({...input,consent:true}),signal:AbortSignal.timeout(20000)});
+ const access='';
+ const r=await fetch('/api/smailpro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...input,consent:true}),signal:AbortSignal.timeout(20000)});
  let data;try{data=await r.json()}catch{throw Error('API Smailpro belum terdeploy.')}if(!r.ok)throw Error(data.error||'Permintaan Smailpro gagal.');return data;
 }
 async function smailproRead(path,opts,session){
@@ -123,3 +122,9 @@ async function smailproRead(path,opts,session){
  if(!message&&!inbox)throw Error('Operasi Smailpro tidak didukung.');
  return smailproRequest({action:message?'message':'inbox',kind:session.kind,email:session.address,timestamp:session.timestamp,...(message?{mid:decodeURIComponent(message[1])}:{})});
 }
+
+function lock(){authenticated=false;document.body.classList.add('locked');$('loginPanel').hidden=false;$('pinInput').value='';}
+function unlock(){authenticated=true;document.body.classList.remove('locked');$('loginPanel').hidden=true;if(mailbox&&!mailbox.paid)refresh(true);}
+$('pinForm').onsubmit=async event=>{event.preventDefault();const button=$('pinSubmit');button.disabled=true;$('pinError').textContent='Memeriksa PIN...';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:$('pinInput').value})});const data=await r.json();if(!r.ok)throw Error(data.error||'Login gagal');$('pinError').textContent='';unlock();toast('Selamat datang di SMSKU')}catch(e){$('pinError').textContent=e.message}finally{button.disabled=false}};
+$('logout').onclick=async()=>{try{const r=await fetch('/api/auth/logout',{method:'POST'});if(!r.ok)throw Error('Gagal keluar');storage.remove('smsku_mail');location.reload()}catch(e){toast(e.message)}};
+(async()=>{try{const r=await fetch('/api/auth/session',{cache:'no-store'});const d=await r.json();if(d.authenticated)unlock();else lock()}catch{lock();$('pinError').textContent='Periksa koneksi internet untuk masuk.'}finally{$('splash').hidden=true}})();
