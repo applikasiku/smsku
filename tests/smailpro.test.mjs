@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises
 const lib=new URL('../lib/server/sms.mjs',import.meta.url).href;const code=(await readFile(new URL('../functions/api/smailpro.js',import.meta.url),'utf8')).replace("'../../lib/server/sms.mjs'",JSON.stringify(lib));const {onRequestPost}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
 const env={SMSKU_ACCESS_TOKEN:'owner',SMAILPRO_API_KEY:'provider-secret'};let calls=0,target,options;
 const request=input=>new Request('https://sms.example.com/api/smailpro',{method:'POST',headers:{Authorization:'Bearer owner'},body:JSON.stringify(input)});
-globalThis.fetch=async(url,opts)=>{calls++;target=String(url);options=opts;return Response.json({email:'example@provider.test',timestamp:1234})};
+globalThis.fetch=async(url,opts)=>{assert.equal(opts.redirect,'manual');calls++;target=String(url);options=opts;return Response.json({email:'example@provider.test',timestamp:1234})};
 assert.equal((await onRequestPost({request:request({action:'create',kind:'gmail',consent:true}),env:{SMSKU_ACCESS_TOKEN:'owner'}})).status,503);
 assert.equal((await onRequestPost({request:request({action:'create',kind:'gmail'}),env})).status,400);assert.equal(calls,0);
 let response=await onRequestPost({request:request({action:'create',kind:'gmail',consent:true}),env});assert.equal(response.status,200);assert(target.startsWith('https://app.sonjj.com/v1/temp_gmail/random?'));assert.equal(options.headers['X-Api-Key'],'provider-secret');assert(!(await response.text()).includes('provider-secret'));
 globalThis.fetch=async()=>{calls++;return Response.json({messages:[{mid:'one',textSubject:'OTP',textFrom:'test',textDate:'2026-10-22'}]})};response=await onRequestPost({request:request({action:'inbox',kind:'temporary',consent:true,email:'example@test.com'}),env});assert.equal((await response.json())['hydra:member'][0].id,'one');
 calls=0;globalThis.fetch=async()=>{calls++;throw Error('network')};response=await onRequestPost({request:request({action:'create',kind:'outlook',consent:true}),env});assert.equal(response.status,502);assert.equal(calls,1);
 console.log('PASS: Smailpro key requirement, consent gate, fixed endpoint, secret isolation, inbox normalization and no paid retries.');
+
+globalThis.fetch=async()=>new Response('html',{status:200});assert.equal((await (await onRequestPost({request:request({action:'create',kind:'gmail',consent:true}),env})).json()).code,'invalid_upstream_response');

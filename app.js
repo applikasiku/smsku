@@ -1,7 +1,7 @@
 let authenticated=false;
 const $ = id => document.getElementById(id);
 const API = 'https://api.mail.tm';
-const MAIL_PROVIDERS=[{name:'Mail.tm',api:API},{name:'Mail.gw (Worker privat)',api:'/api/mail'},{name:'Smailpro',api:'/api/smailpro',paid:true}];
+const MAIL_PROVIDERS=[{name:'Mail.gw (Worker privat)',api:'/api/mail'},{name:'Mail.tm',api:API},{name:'Smailpro',api:'/api/smailpro',paid:true}];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon = name => `<img class="ui-icon" src="/icons/${['mail','inbox'].includes(name)?'app-192':name}.png" width="24" height="24" alt="">`;
 const storage = {get(k){try{return sessionStorage.getItem(k)}catch{return null}},set(k,v){try{sessionStorage.setItem(k,v)}catch{}},remove(k){try{sessionStorage.removeItem(k)}catch{}}};
@@ -22,7 +22,7 @@ async function api(path, opts={}, session=mailbox, base=session?.api||API){
   try{return await response.json()}catch{throw Error('Respons penyedia email tidak valid. Coba penyedia lain.')}
  }catch(error){
   if(controller.signal.aborted){const e=new Error('Penyedia email tidak merespons dalam batas waktu koneksi.');e.network=true;throw e}
-  if(error instanceof TypeError){const e=new Error('Browser tidak dapat menjangkau penyedia email. Periksa koneksi atau pilih penyedia lain.');e.network=true;throw e}
+  if(error instanceof TypeError){const e=new Error('Browser tidak dapat menjangkau Mail.tm. Pilih Otomatis atau Mail.gw untuk memakai koneksi server.');e.network=true;throw e}
   throw error;
  }finally{clearTimeout(timeout)}
 }

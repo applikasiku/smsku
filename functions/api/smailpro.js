@@ -24,11 +24,12 @@ export async function onRequestPost({request,env}){
    url.searchParams.set('mid',input.mid);
   }
  }
+ let stage='connect';
  try{
   // Paid calls are never retried automatically.
-  const r=await fetch(url,{headers:{'X-Api-Key':env.SMAILPRO_API_KEY,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(15000)});
-  if(!r.ok)return json({error:r.status===401?'API key Smailpro ditolak.':r.status===403?'Akses Smailpro ditolak. Periksa saldo kredit dan izin API.':r.status===429?'Batas permintaan Smailpro tercapai.':'Smailpro gagal merespons ('+r.status+').'},502);
-  const data=await r.json();
+  const r=await fetch(url,{headers:{'X-Api-Key':env.SMAILPRO_API_KEY,Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(15000)});
+  if(!r.ok)return json({error:r.status===401?'API key Smailpro ditolak.':r.status===402?'Kredit Sonjj tidak cukup. Isi kredit API di dashboard Sonjj.':r.status===403?'Akses Smailpro ditolak. Periksa saldo kredit dan izin API.':r.status===429?'Batas permintaan Smailpro tercapai.':'Smailpro gagal merespons ('+r.status+').'},502);
+  stage='parse';let data;try{data=await r.json()}catch{return json({error:'Smailpro mengembalikan respons non-JSON. Status pembuatan belum pasti; periksa dashboard sebelum mencoba lagi.',code:'invalid_upstream_response'},502)}
   if(input.action==='create'){
    if(typeof data.email!=='string'||!data.email.includes('@'))return json({error:'Smailpro tidak mengembalikan alamat yang valid.'},502);
    return json({email:data.email,timestamp:data.timestamp??Math.floor(Date.now()/1000),expired_at:data.expired_at??null});
@@ -38,5 +39,5 @@ export async function onRequestPost({request,env}){
    return json({'hydra:member':data.messages.map(m=>({id:m.mid,subject:m.textSubject||'',from:{address:m.textFrom||''},createdAt:m.textDate,intro:''}))});
   }
   return json({id:input.mid,subject:'',from:{address:'Smailpro'},text:typeof data.body==='string'?data.body:''});
- }catch{return json({error:'Tidak dapat membaca respons Smailpro. Permintaan tidak diulang untuk menghindari kredit ganda; periksa dashboard sebelum mencoba lagi.'},502)}
+ }catch(error){return json({error:error.name==='TimeoutError'||error.name==='AbortError'?'Smailpro melewati batas waktu. Status permintaan belum pasti; periksa dashboard sebelum mencoba lagi.':'Koneksi server ke Smailpro gagal. Permintaan tidak diulang otomatis; periksa dashboard sebelum mencoba lagi.',code:stage==='connect'?'upstream_connection':'upstream_response'},502)}
 }

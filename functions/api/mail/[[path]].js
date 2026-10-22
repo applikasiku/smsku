@@ -16,7 +16,7 @@ export async function onRequest({request,env}){
   body=JSON.stringify({address:value.address,password:value.password});headers['Content-Type']='application/json';
  }
  try{
- const response=await fetch(target,{method,headers,body,redirect:'error',signal:AbortSignal.timeout(15000)});
+ const response=await fetch(target,{method,headers,body,redirect:'manual',signal:AbortSignal.timeout(15000)});
  if(!response.ok)return json({error:response.status===429?'Mail.gw membatasi permintaan. Tunggu sebentar.':'Penyedia Mail.gw gagal merespons ('+response.status+').',upstream_status:response.status},response.status===429?429:502);
  if(response.status===204)return new Response(null,{status:204,headers:{'Cache-Control':'no-store'}});
  const data=await response.json();return json(data,response.status);

@@ -1,4 +1,4 @@
-const CACHE='smsku-v10-emerald-pin';
+const CACHE='smsku-v11-email-connect';
 const ASSETS=['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/settings.png', '/icons/lock.png', '/icons/bright-moon.png', '/icons/smartphone.png', '/icons/disconnected.png', '/icons/error.png', '/icons/app-192.png', '/icons/home.png', '/icons/app-512.png', '/icons/sun.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('smsku-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
